@@ -11,13 +11,14 @@ import numpy as np
 from numpy.linalg import norm
 import pickle as pkl
 from time import strftime
+from datetime import datetime as dt
 import pprint
 
 import mne
 from mne.preprocessing import maxwell_filter
 from mne.io.pick import pick_types
 
-from shielding_func import comp_shielding, erm_error_checks
+from shielding_func import comp_shielding, erm_error_checks, get_power
 
 #######################################
 # Define global vars
@@ -38,12 +39,13 @@ params = dict(erm_len=180.,  # Length (in seconds) of raw data to process
 
 data_dir = op.join(file_head_dir, 'ERM_data')
 erm_filenames = os.listdir(data_dir)
+erm_filenames.sort()
 save_dir = op.join(file_head_dir, 'cache')
 
-debug = False
 pkl_data = True
 pp = pprint.PrettyPrinter(indent=2)
 
+debug = False
 if debug:
     erm_filenames = erm_filenames[0:3]  # Subselect a few files
     params['erm_len'] = 30.
@@ -70,16 +72,22 @@ for fi, f_name in enumerate(erm_filenames):
     print '\n=================================================='
     print ('Processing {num} of {tot}: \n'.format(num=fi + 1,
                                                   tot=len(erm_filenames)) +
-           f_name + ' \n')
+           f_name)
 
     # Load data, crop, and update magnetometer coil type info
     raw = mne.io.Raw(op.join(data_dir, f_name), verbose=params['verbose'])
     erm_error_checks(raw)
+    print ('Time of recording: ' +
+           dt.fromtimestamp(raw.info['meas_date'][0]).strftime('%Y-%m-%d %H:%M:%S')
+           + '\n')
 
     raw.crop(tmax=params['erm_len'], copy=False)
     raw.fix_mag_coil_types()
 
     shielding_dict = dict(f_name=f_name)
+
+    # Store power to get relative change
+    shielding_dict['raw_norm'] = get_power(raw)
 
     # Do SSS processing using different calibration files
     for cal_key, cal_fname in zip(params['cal_keys'], params['cal_fnames']):

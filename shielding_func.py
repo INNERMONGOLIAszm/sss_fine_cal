@@ -45,17 +45,24 @@ def erm_error_checks(raw, lp=300, hp=0.15, sfreq=1000, nsecs=120):
 
 
 def comp_shielding(raw, raw_sss):
-    """Helper to computer shielding factor using raw and SSS processed data"""
+    """Helper to compute shielding factor using raw and SSS processed data"""
+
+    # Compute signal norm of both matrices for all time points
+    raw_power = get_power(raw)
+    sss_power = get_power(raw_sss)
+
+    # Return shielding factor
+    return raw_power / sss_power
+
+
+def get_power(raw):
+    """Helper to compute power of magnetometer channels in raw object"""
 
     # Grab only magnetometers for calculation (though both mags and grads
     # affect shielding factor calculation)
     picks = pick_types(raw.info, meg='mag')
-    assert np.all(picks == pick_types(raw_sss.info, meg='mag')), \
+    assert np.all(picks == pick_types(raw.info, meg='mag')), \
         'Channel mismatch'
 
-    # Compute signal norm of both matrices for all time points
-    raw_power = norm(raw[picks][0], axis=0)
-    sss_power = norm(raw_sss[picks][0], axis=0)
-
-    # Return shielding factor
-    return raw_power / sss_power
+    # Return norm along channel axis
+    return norm(raw[picks][0], axis=0)
