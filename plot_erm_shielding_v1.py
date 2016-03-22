@@ -9,6 +9,7 @@ import os
 import os.path as op
 import numpy as np
 import pickle as pkl
+import matplotlib
 
 #######################################
 # Define global vars and load data
@@ -64,15 +65,18 @@ print 'Loading data from: ' + params['finish_time']
 
 mean_sf_list = []
 max_sf_list = []
+sf_arr = {}
 
 for ri, reg_key in enumerate(params['cal_keys']):
-    sf_arr = get_sf_arr(sf_list, reg_key)
+    sf_arr[reg_key] = get_sf_arr(sf_list, reg_key)
 
-    mean_sf_list.append(np.mean(sf_arr, axis=1))
-    max_sf_list.append(np.max(sf_arr, axis=1))
+    mean_sf_list.append(np.mean(sf_arr[reg_key], axis=1))
+    max_sf_list.append(np.max(sf_arr[reg_key], axis=1))
+sf_arr['raw_norm'] = get_sf_arr(sf_list, 'raw_norm')
 
 ############################
 # Plot mean/max shielding factor
+plt.close('all')
 
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(2 * fig_width_1col, 4))
 
@@ -168,5 +172,59 @@ plt.tight_layout()
 if save_plots:
     fig3.savefig(op.join(save_dir, plot_prefix +
                          'shielding_mean_max_violin.png'), dpi=150)
+
+#############################################
+# Plot shielding factor over time
+
+x_max = 180001
+n_days = 4
+key = 'None'
+
+fig4, ax4 = plt.subplots(figsize=(3 * fig_width_1col, 6))
+ax4.plot(np.arange(0, x_max * 0.001, step=0.001), sf_arr[key][0:n_days, :].T, alpha=0.7)
+
+ax4.set_xlabel('Fine calibration type', fontsize=label_fontsize)
+ax4.set_ylabel('Shielding Factor', fontsize=label_fontsize)
+
+ax4.set_ylim([0, 70])
+ax4.xaxis.set_ticks_position('bottom')
+ax4.yaxis.set_ticks_position('left')
+
+ax4.yaxis.grid(True)
+
+plt.tight_layout()
+
+if save_plots:
+    fig4.savefig(op.join(save_dir, plot_prefix + key +
+                         '_dynamic_shielding.png'), dpi=150)
+
+#############################################
+# Plot shielding factor over time
+
+fig5, axs5 = plt.subplots(nrows=1, ncols=3, figsize=(5 * fig_width_1col, 8))
+ylims = [65, 120, 350]
+colors = matplotlib.colors.cnames.keys()
+#colors = ['b', 'g', 'r', 'c']
+for ai, (ax, key) in enumerate(zip(axs5, params['cal_keys'])):
+
+    for row_i in range(sf_arr['raw_norm'].shape[0]):
+        ax.scatter(sf_arr['raw_norm'][row_i, :], sf_arr[key][row_i, :], s=.2,
+                   c='k', alpha=0.05, edgecolor='none')
+
+    ax.set_xlim(0, 2e-9)
+    ax.set_ylim(0, ylims[ai])
+    ax.set_xlabel('Raw signal norm', fontsize=label_fontsize)
+    ax.set_ylabel('Shielding factor', fontsize=label_fontsize)
+
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+    ax.grid(True)
+fig5.suptitle('Data from all days')
+
+plt.tight_layout(pad=2.)
+
+if save_plots:
+    fig5.savefig(op.join(save_dir, plot_prefix + 'norm_comparison.png'),
+                 dpi=150)
 
 plt.show()
