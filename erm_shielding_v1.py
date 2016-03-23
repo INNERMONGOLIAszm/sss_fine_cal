@@ -17,6 +17,7 @@ import pprint
 import mne
 from mne.preprocessing import maxwell_filter
 from mne.io.pick import pick_types
+from mne.parallel import parallel_func
 
 from shielding_func import comp_shielding, erm_error_checks, get_power
 
@@ -47,32 +48,16 @@ pp = pprint.PrettyPrinter(indent=2)
 
 debug = False
 if debug:
-    erm_filenames = erm_filenames[0:3]  # Subselect a few files
+    erm_filenames = erm_filenames[0:10]  # Subselect a few files
     params['erm_len'] = 30.
     pkl_data = False
 
-####################################################
-# Read in ERM files, apply SSS and compute shielding
-####################################################
-sf_list = []  # List storing a [1 x n_times] vector for each .fif file
 
-# Print relevant processing info
-print '\nMaxwell filter fine calibrations choosen:'
-pp.pprint(params['cal_keys'])
-if '1D' in params['cal_keys']:
-    print '1D calibration file: ' + fineCal_1d_fname
-if '3D' in params['cal_keys']:
-    print '3D calibration file: ' + fineCal_3d_fname
-print ('\nProcessing {num} files (started @ '.format(num=len(erm_filenames)) +
-       strftime('%D %H:%M:%S') + '):')
-pp.pprint(erm_filenames)
-
-
-for fi, f_name in enumerate(erm_filenames):
-    print '\n=================================================='
-    print ('Processing {num} of {tot}: \n'.format(num=fi + 1,
-                                                  tot=len(erm_filenames)) +
-           f_name)
+#############################################
+# SSS function to be used in parallel methods
+#############################################
+def _maxwell_fun(f_name):
+    '''Aux function to run SSS and store shielding calculations'''
 
     # Load data, crop, and update magnetometer coil type info
     raw = mne.io.Raw(op.join(data_dir, f_name), verbose=params['verbose'])
@@ -105,8 +90,29 @@ for fi, f_name in enumerate(erm_filenames):
         print (cal_key + '\tMean: {mean} \tMax: {max}'.format(
             mean=np.mean(shielding_dict[cal_key]),
             max=np.max(shielding_dict[cal_key])))
+    return shielding_dict
 
-    sf_list.append(shielding_dict)
+####################################################
+# Read in ERM files, apply SSS and compute shielding
+####################################################
+# List storing a dict of results for each .fif file
+sf_list = [None] * len(erm_filenames)
+
+# Print relevant processing info
+print '\nMaxwell filter fine calibrations choosen:'
+pp.pprint(params['cal_keys'])
+if '1D' in params['cal_keys']:
+    print '1D calibration file: ' + fineCal_1d_fname
+if '3D' in params['cal_keys']:
+    print '3D calibration file: ' + fineCal_3d_fname
+print ('\nProcessing {num} files (started @ '.format(num=len(erm_filenames)) +
+       strftime('%D %H:%M:%S') + '):')
+pp.pprint(erm_filenames)
+
+# Parallelized functions
+parallel, my_maxwell, n_jobs = parallel_func(_maxwell_fun, n_jobs=-1,
+                                             verbose=False)
+sf_list = parallel(my_maxwell(f_name) for f_name in erm_filenames)
 
 ####################################################
 # Save data
