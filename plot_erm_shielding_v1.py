@@ -107,8 +107,6 @@ plt.tight_layout()
 if save_plots:
     fig.savefig(op.join(save_dir, plot_prefix +
                         'shielding_mean_max.png'), dpi=150)
-    #fig.savefig(op.join(save_dir) + 'shielding_mean_max.pdf', dpi=300)
-
 
 #############################################
 # Plot histogram of mean/max shielding factor
@@ -202,29 +200,73 @@ if save_plots:
 # Plot shielding factor over time
 
 fig5, axs5 = plt.subplots(nrows=1, ncols=3, figsize=(5 * fig_width_1col, 8))
-ylims = [65, 120, 350]
+ylims = [65, 120, 300]
 colors = matplotlib.colors.cnames.keys()
 #colors = ['b', 'g', 'r', 'c']
-for ai, (ax, key) in enumerate(zip(axs5, params['cal_keys'])):
+cmap = 'jet'
 
-    for row_i in range(sf_arr['raw_norm'].shape[0]):
-        ax.scatter(sf_arr['raw_norm'][row_i, :], sf_arr[key][row_i, :], s=.2,
-                   c='k', alpha=0.05, edgecolor='none')
+cbar_ax_rect = (.13, .85, .12, .05)
+cbar_ax = fig5.add_axes(cbar_ax_rect, xticks=[0, 255],
+                        xticklabels=['Old', 'New'], yticks=[])
+jet_grad = np.linspace(0, 1, 256)
+cbar_ax.imshow(np.vstack((jet_grad, jet_grad)), aspect='auto', cmap=cmap)
 
-    ax.set_xlim(0, 2e-9)
-    ax.set_ylim(0, ylims[ai])
-    ax.set_xlabel('Raw signal norm', fontsize=label_fontsize)
-    ax.set_ylabel('Shielding factor', fontsize=label_fontsize)
+for row_i in range(sf_arr['raw_norm'].shape[0]):
+    colors = np.linspace(0, 1, sf_arr['raw_norm'][row_i, :].shape[0]).reshape(-1, 1)
 
-    ax.xaxis.set_ticks_position('bottom')
-    ax.yaxis.set_ticks_position('left')
-    ax.grid(True)
-fig5.suptitle('Data from all days')
+    for ai, (ax, key) in enumerate(zip(axs5, params['cal_keys'])):
+        ax.clear()
+        ax.scatter(sf_arr['raw_norm'][row_i, :], sf_arr[key][row_i, :], s=1,
+                   cmap=cmap, c=colors, alpha=0.2, edgecolor='none')
 
-plt.tight_layout(pad=2.)
+        ax.set_xlim(0, 1.5e-9)
+        ax.set_ylim(0, ylims[ai])
+        ax.set_xlabel('Raw signal norm', fontsize=label_fontsize)
+        ax.set_ylabel('Shielding factor\nFine Cal: ' + key,
+                      fontsize=label_fontsize)
+
+        ax.xaxis.set_ticks_position('bottom')
+        ax.yaxis.set_ticks_position('left')
+        ax.grid(True)
+
+    date = sf_list[row_i]['f_name'][:6]
+    fig5.suptitle('Data from ' + date)
+    fig5.tight_layout(pad=2.)
+
+    if save_plots:
+        fig5.savefig(op.join(save_dir, 'ERM_norm_daily', plot_prefix +
+                             'norm_comparison_' + date + '.png'), dpi=150)
+
+#############################################################
+# Plot signal norm for mags pointing in 3 cardinal directions
+
+fig6, ax6 = plt.subplots(nrows=1, ncols=1, figsize=(2 * fig_width_1col, 4))
+axs6 = [ax6]
+card_mag_arr = np.zeros((3, len(sf_list)))
+for ri, shield_dict in enumerate(sf_list):
+    #temp_list = [shield_dict[key] for key in ['chan_' + str(ch) for ch in params['card_mags']]]
+    card_mag_arr[:, ri] = [shield_dict[key] for key in ['chan_' + str(ch) for ch in params['card_mags']]]
+
+for mi, dir_key in enumerate(['Max X Norm', 'Max Y Norm', 'Max Z Norm']):
+    axs6[0].plot(range(card_mag_arr.shape[1]), card_mag_arr[mi, :],
+                 color=colors3_hex[mi], label=dir_key + ': ' +
+                 str(params['card_mags'][mi]), lw=2)
+
+
+ax_ylims = axs6[0].get_ylim()
+#axs6[0].set_ylim(ax_ylims[0], ax_ylims[1] + 0.1 * (ax_ylims[1] - ax_ylims[0]))
+#axs6[0].set_ylim(ax_ylims[0], 140)
+axs6[0].legend(loc='best', fontsize=label_fontsize - 4)
+axs6[0].set_xlabel('Day', fontsize=label_fontsize)
+axs6[0].set_ylabel('Mean raw norm', fontsize=label_fontsize)
+axs6[0].locator_params(axis='x', nbins=5)
+axs6[0].locator_params(axis='y', nbins=8)
+axs6[0].xaxis.set_ticks_position('bottom')
+axs6[0].yaxis.set_ticks_position('left')
+
+plt.tight_layout()
 
 if save_plots:
-    fig5.savefig(op.join(save_dir, plot_prefix + 'norm_comparison.png'),
-                 dpi=150)
-
+    fig6.savefig(op.join(save_dir, plot_prefix +
+                         'shielding_card_dirs.png'), dpi=150)
 plt.show()
